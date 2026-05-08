@@ -1,6 +1,6 @@
 # 🎙️ Backroom Group Audio Deepfake Detector
 
-An advanced, locally-hosted machine learning system designed to forensically analyze audio files and microphone inputs to detect synthetic (AI-generated) voice artifacts. 
+(NOTE: final trained model (final_hubert_model) and the data that was trained on (ai_gen and human_gen) are available via the submitted Google Drive link due to Github limitations) An advanced, locally-hosted machine learning system designed to forensically analyze audio files and microphone inputs to detect synthetic (AI-generated) voice artifacts. 
 
 Built on a fine-tuned **HuBERT** foundation model and a custom **Digital Signal Processing (DSP)** pipeline, this system successfully bridges the "domain gap" between pristine studio audio and noisy real-world environments.
 
