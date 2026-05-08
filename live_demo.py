@@ -15,6 +15,14 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)
 model.eval()
 
+# --- OPTIMIZATION: Load dictionary once into memory ---
+DISPLAY_MAP = {
+    "ai_gen": "AI Generated",
+    "human_gen": "Human Generated",
+    "fake": "AI Generated", 
+    "real": "Human Generated" 
+}
+
 # --- DSP AUDIO FILTERS ---
 def butter_highpass(cutoff, fs, order=5):
     nyq = 0.5 * fs
@@ -57,31 +65,30 @@ def classify_audio(audio_filepath):
     
     try:
         speech = preprocess_audio(audio_filepath)
+        
+        # Tokenize the audio array for the model
         inputs = feature_extractor(speech, sampling_rate=16000, return_tensors="pt", padding=True)
         inputs = {k: v.to(device) for k, v in inputs.items()}
         
+        # Run inference (no_grad optimizes memory usage)
         with torch.no_grad():
             logits = model(**inputs).logits
             
+        # Convert raw logits to percentages
         probabilities = torch.nn.functional.softmax(logits, dim=-1).squeeze().cpu().numpy()
         raw_labels = model.config.id2label
         
-        display_map = {
-            "ai_gen": "AI Generated",
-            "human_gen": "Human Generated",
-            "fake": "AI Generated", 
-            "real": "Human Generated" 
-        }
-        
+        # Format the output for the Gradio UI
         result = {}
         for i in range(len(raw_labels)):
             raw_name = raw_labels[i]
-            pretty_name = display_map.get(raw_name, raw_name) 
+            pretty_name = DISPLAY_MAP.get(raw_name, raw_name) 
             result[pretty_name] = float(probabilities[i])
             
         return result
         
     except ValueError as ve:
+        # Catches our custom DSP errors (too quiet, too short) and safely alerts the user
         print(f"DSP Warning: {ve}")
         raise gr.Error(str(ve))
         
@@ -89,12 +96,9 @@ def classify_audio(audio_filepath):
         print(f"Error processing audio: {e}")
         raise gr.Error("System Error Processing Audio")
 
-def reset_ui():
-    """Natively clears the audio and label outputs."""
-    return None, None
+# --- UI: NATIVE GRADIO ---
 
-# --- UI: NATIVE GRADIO (Clean & Professional) ---
-with gr.Blocks(theme=gr.themes.Soft()) as demo:
+with gr.Blocks() as demo:
     
     gr.Markdown(
         """
@@ -110,16 +114,16 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
                 type="filepath", 
                 label="Input Audio"
             )
-            clear_btn = gr.Button("Clear Results", variant="secondary")
             
         with gr.Column(scale=1):
             label_output = gr.Label(num_top_classes=2, label="Detection Confidence")
 
+    clear_btn = gr.ClearButton(components=[audio_input, label_output], value="Clear Results", variant="secondary")
+
     # Native Gradio Event Triggers
     audio_input.stop_recording(fn=classify_audio, inputs=audio_input, outputs=label_output)
     audio_input.upload(fn=classify_audio, inputs=audio_input, outputs=label_output)
-    
-    clear_btn.click(fn=reset_ui, inputs=None, outputs=[audio_input, label_output])
+    audio_input.clear(fn=lambda: None, inputs=None, outputs=label_output)
 
 if __name__ == "__main__":
-    demo.launch(share=False, inbrowser=True)
+    demo.launch(share=False, inbrowser=True, theme=gr.themes.Soft())
